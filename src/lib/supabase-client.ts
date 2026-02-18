@@ -129,13 +129,19 @@ export async function isAdmin(userId: string): Promise<boolean> {
 
 // ==================== LEADS ====================
 
-export async function createLead(lead: Omit<Lead, 'id' | 'status' | 'notes' | 'created_at' | 'updated_at'>) {
+export async function createLead(lead: Omit<Lead, 'id' | 'status' | 'notes' | 'created_at' | 'updated_at'> & { message?: string }) {
+  // Mapper 'message' vers 'notes' car la table leads utilise 'notes'
+  const { message, ...leadData } = lead as any;
   const { data, error } = await supabase
     .from('leads')
     .insert([{
-      ...lead,
+      first_name: leadData.first_name,
+      last_name: leadData.last_name,
+      email: leadData.email,
+      phone: leadData.phone,
+      profession: leadData.profession,
       status: 'new',
-      notes: '',
+      notes: message || '',
     }])
     .select()
     .single();
