@@ -377,47 +377,43 @@ export async function getLeadInteractions(leadId: string) {
 export async function sendEmailToLead(lead: Lead, subject: string, body: string) {
   // 1. Envoyer l'email via la Edge Function
   const htmlBody = body.replace(/\n/g, '<br>');
-  const emailData = await invokeEdgeFunction('send-email', {
-    to: lead.email,
-    subject,
-    body,
-    htmlBody,
-  });
 
-  if (!emailData?.success) {
-    // Enregistrer l'échec dans les interactions
-    await supabase.from('lead_interactions').insert([{
-      lead_id: lead.id,
-      type: 'email',
-      direction: 'outbound',
+  let emailData: any;
+  try {
+    emailData = await invokeEdgeFunction('send-email', {
+      to: lead.email,
       subject,
       body,
-      status: 'failed',
+      htmlBody,
+    });
+  } catch (fetchError: any) {
+    // Enregistrer l'échec silencieusement (fire and forget)
+    void supabase.from('lead_interactions').insert([{
+      lead_id: lead.id, type: 'email', direction: 'outbound',
+      subject, body, status: 'failed',
+    }]);
+    throw new Error(`Erreur réseau Edge Function: ${fetchError.message}`);
+  }
+
+  if (!emailData?.success) {
+    // Enregistrer l'échec silencieusement (fire and forget)
+    void supabase.from('lead_interactions').insert([{
+      lead_id: lead.id, type: 'email', direction: 'outbound',
+      subject, body, status: 'failed',
     }]);
     throw new Error(emailData?.error || 'Échec de l\'envoi de l\'email');
   }
 
-  // 2. Enregistrer l'interaction dans l'historique
-  const { error: interactionError } = await supabase
-    .from('lead_interactions')
-    .insert([{
-      lead_id: lead.id,
-      type: 'email',
-      direction: 'outbound',
-      subject,
-      body,
-      status: 'completed',
-    }]);
+  // 2. Enregistrer l'interaction dans l'historique (non bloquant)
+  void supabase.from('lead_interactions').insert([{
+    lead_id: lead.id, type: 'email', direction: 'outbound',
+    subject, body, status: 'completed',
+  }]);
 
-  if (interactionError) {
-    console.warn('Interaction non enregistrée:', interactionError.message);
-  }
-
-  // 3. Mettre à jour last_contacted_at + statut → contacted si encore "new"
+  // 3. Mettre à jour last_contacted_at + statut → contacted si encore "new" (non bloquant)
   const updates: any = { last_contacted_at: new Date().toISOString() };
   if (lead.status === 'new') updates.status = 'contacted';
-
-  await supabase.from('leads').update(updates).eq('id', lead.id);
+  void supabase.from('leads').update(updates).eq('id', lead.id);
 
   return { success: true, messageId: emailData.messageId };
 }
