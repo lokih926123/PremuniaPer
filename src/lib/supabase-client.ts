@@ -472,29 +472,53 @@ export async function sendBulkEmails(automationId: string, leadIds: string[], te
   }
 }
 
+// Appel direct à la Edge Function avec le token de session courant
+async function invokeEdgeFunction(functionName: string, body: object) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token || publicAnonKey;
+
+  const response = await fetch(
+    `https://${projectId}.supabase.co/functions/v1/${functionName}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'apikey': publicAnonKey,
+      },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Edge Function error ${response.status}: ${text}`);
+  }
+
+  return response.json();
+}
+
 export async function testSmtpConnection(testEmail: string) {
   try {
-    const response = await supabase.functions.invoke('send-email', {
-      body: {
-        to: testEmail,
-        subject: 'Test Email - Premunia CRM',
-        body: 'This is a test email from Premunia CRM. If you received this, the email configuration works!',
-        htmlBody: `
-          <h2>Test Email - Premunia CRM</h2>
-          <p>This is a test email from Premunia CRM.</p>
-          <p style="color: green; font-weight: bold;">✓ If you received this, the email configuration works!</p>
-          <hr />
-          <p><small>Sent on ${new Date().toLocaleString()}</small></p>
-        `
-      }
+    const data = await invokeEdgeFunction('send-email', {
+      to: testEmail,
+      subject: 'Test Email - Premunia CRM',
+      body: 'Ceci est un email de test depuis Premunia CRM. Si vous recevez cet email, la configuration SMTP fonctionne!',
+      htmlBody: `
+        <h2>Test Email - Premunia CRM</h2>
+        <p>Ceci est un email de test depuis Premunia CRM.</p>
+        <p style="color: green; font-weight: bold;">✓ Si vous recevez cet email, la configuration SMTP fonctionne!</p>
+        <hr />
+        <p><small>Envoyé le ${new Date().toLocaleString('fr-FR')}</small></p>
+      `
     });
 
-    if (response.data?.success) {
-      return { success: true, message: `Test email sent to ${testEmail}` };
+    if (data?.success) {
+      return { success: true, message: `Email de test envoyé à ${testEmail}` };
     } else {
-      throw new Error(response.data?.error || 'Failed to send test email');
+      throw new Error(data?.error || 'Échec de l\'envoi de l\'email de test');
     }
   } catch (error: any) {
-    throw new Error(error.message || 'Error sending test email');
+    throw new Error(error.message || 'Erreur lors de l\'envoi de l\'email de test');
   }
 }
