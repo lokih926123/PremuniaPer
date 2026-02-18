@@ -1,1 +1,44 @@
-node_modules
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment variables (NEVER commit these)
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Build output (generated files, not source)
+dist/
+build/
+.output/
+
+# Supabase local temp files
+supabase/.temp/
+supabase/.branches/
+
+# IDE & OS files
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Test files temporaires
+test*.json
+update-smtp.json
+insert-template.json

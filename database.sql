@@ -172,10 +172,10 @@ CREATE POLICY "Allow admin all on smtp_config"
 -- 9. POLICIES - ADMINS
 -- =====================================================
 
--- Seuls les admins existants peuvent voir la liste des admins
-CREATE POLICY "Allow admin read on admins" 
+-- Allow authenticated users to check if they are an admin
+CREATE POLICY "Allow authenticated to check admin status" 
   ON admins FOR SELECT 
-  USING (EXISTS (SELECT 1 FROM admins WHERE admins.user_id = auth.uid()));
+  USING (auth.role() = 'authenticated');
 
 -- Permet l'auto-promotion (première fois seulement)
 -- ATTENTION : Désactivez cette policy après avoir créé votre premier admin !
