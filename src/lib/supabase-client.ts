@@ -117,11 +117,11 @@ export async function isAdmin(userId: string): Promise<boolean> {
     .from('admins')
     .select('id')
     .eq('user_id', userId)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === 'PGRST116') return false; // Not found
-    throw error;
+    console.error('isAdmin error:', error);
+    return false; // Assume not admin if any error occurs
   }
 
   return !!data;
@@ -294,6 +294,12 @@ export async function getSmtpConfig() {
   } as SmtpConfig;
 }
 
+// Valide qu'une chaîne est un UUID valide (format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
+
 export async function updateSmtpConfig(config: Partial<SmtpConfig>) {
   // If password is masked, remove it from update
   if (config.password === '••••••••') {
@@ -311,6 +317,20 @@ export async function updateSmtpConfig(config: Partial<SmtpConfig>) {
     throw fetchError;
   }
 
+  // Si l'enregistrement existe mais son UUID est invalide (corrompu),
+  // on supprime et recrée pour corriger le problème
+  if (existing && !isValidUUID(existing.id)) {
+    console.warn('UUID smtp_config invalide détecté:', existing.id, '— suppression et recréation...');
+    await supabase.from('smtp_config').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    const { data, error } = await supabase
+      .from('smtp_config')
+      .insert([config])
+      .select()
+      .single();
+    if (error) throw error;
+    return { ...data, password: data.password ? '••••••••' : '' } as SmtpConfig;
+  }
+
   if (!existing) {
     // Create if doesn't exist
     const { data, error } = await supabase
@@ -323,7 +343,7 @@ export async function updateSmtpConfig(config: Partial<SmtpConfig>) {
     return { ...data, password: data.password ? '••••••••' : '' } as SmtpConfig;
   }
 
-  // Update existing
+  // Update existing (UUID valide)
   const { data, error } = await supabase
     .from('smtp_config')
     .update(config)
@@ -333,4 +353,148 @@ export async function updateSmtpConfig(config: Partial<SmtpConfig>) {
 
   if (error) throw error;
   return { ...data, password: data.password ? '••••••••' : '' } as SmtpConfig;
+}
+
+// ==================== AUTOMATIONS ====================
+
+export async function getAutomations() {
+  const { data, error } = await supabase
+    .from('automations')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function getEmailTemplates() {
+  const { data, error } = await supabase
+    .from('email_templates')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function sendBulkEmails(automationId: string, leadIds: string[], templateId: string) {
+  try {
+    // Fetch the template
+    const { data: templateData, error: templateError } = await supabase
+      .from('email_templates')
+      .select('*')
+      .eq('id', templateId)
+      .single();
+
+    if (templateError) throw new Error('Template not found');
+
+    // Fetch the leads
+    const { data: leadsData, error: leadsError } = await supabase
+      .from('leads')
+      .select('*')
+      .in('id', leadIds);
+
+    if (leadsError) throw new Error('Failed to fetch leads');
+
+    if (!leadsData || leadsData.length === 0) {
+      throw new Error('No leads found');
+    }
+
+    // Send emails to all leads via Edge Function
+    const sentEmails: any[] = [];
+    const failedEmails: any[] = [];
+
+    for (const lead of leadsData) {
+      try {
+        // Replace template variables
+        let subject = templateData.subject;
+        let body = templateData.body;
+
+        const variables = {
+          first_name: lead.first_name || '',
+          last_name: lead.last_name || '',
+          email: lead.email || '',
+          profession: lead.profession || '',
+          company: lead.company || '',
+          today: new Date().toLocaleDateString('fr-FR')
+        };
+
+        for (const [key, value] of Object.entries(variables)) {
+          subject = subject.replace(new RegExp(`{{${key}}}`, 'g'), String(value));
+          body = body.replace(new RegExp(`{{${key}}}`, 'g'), String(value));
+        }
+
+        // Convert newlines to <br> for HTML
+        const htmlBody = body.replace(/\n/g, '<br>');
+
+        // Send email via Supabase Edge Function
+        const response = await supabase.functions.invoke('send-email', {
+          body: {
+            to: lead.email,
+            subject: subject,
+            body: body,
+            htmlBody: htmlBody
+          }
+        });
+
+        if (response.data?.success) {
+          sentEmails.push({
+            leadId: lead.id,
+            email: lead.email,
+            status: 'sent'
+          });
+        } else {
+          failedEmails.push({
+            leadId: lead.id,
+            email: lead.email,
+            error: response.data?.error || 'Unknown error'
+          });
+        }
+      } catch (error: any) {
+        failedEmails.push({
+          leadId: lead.id,
+          email: lead.email,
+          error: error.message
+        });
+      }
+    }
+
+    return {
+      success: true,
+      sent_count: sentEmails.length,
+      failed_count: failedEmails.length,
+      message: `${sentEmails.length} emails sent, ${failedEmails.length} failed`,
+      sentEmails,
+      failedEmails
+    };
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to send bulk emails');
+  }
+}
+
+export async function testSmtpConnection(testEmail: string) {
+  try {
+    const response = await supabase.functions.invoke('send-email', {
+      body: {
+        to: testEmail,
+        subject: 'Test Email - Premunia CRM',
+        body: 'This is a test email from Premunia CRM. If you received this, the email configuration works!',
+        htmlBody: `
+          <h2>Test Email - Premunia CRM</h2>
+          <p>This is a test email from Premunia CRM.</p>
+          <p style="color: green; font-weight: bold;">✓ If you received this, the email configuration works!</p>
+          <hr />
+          <p><small>Sent on ${new Date().toLocaleString()}</small></p>
+        `
+      }
+    });
+
+    if (response.data?.success) {
+      return { success: true, message: `Test email sent to ${testEmail}` };
+    } else {
+      throw new Error(response.data?.error || 'Failed to send test email');
+    }
+  } catch (error: any) {
+    throw new Error(error.message || 'Error sending test email');
+  }
 }
