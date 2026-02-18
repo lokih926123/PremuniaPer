@@ -385,6 +385,11 @@ export async function getEmailTemplates() {
 
 export async function sendBulkEmails(automationId: string, leadIds: string[], templateId: string) {
   try {
+    // Vérifier que templateId est valide avant la requête
+    if (!templateId || templateId.trim() === '') {
+      throw new Error('Aucun modèle d\'email disponible. Veuillez créer un modèle d\'email dans la base de données.');
+    }
+
     // Fetch the template
     const { data: templateData, error: templateError } = await supabase
       .from('email_templates')
@@ -392,7 +397,7 @@ export async function sendBulkEmails(automationId: string, leadIds: string[], te
       .eq('id', templateId)
       .single();
 
-    if (templateError) throw new Error('Template not found');
+    if (templateError) throw new Error('Modèle d\'email introuvable. Vérifiez que des modèles existent dans la base.');
 
     // Fetch the leads
     const { data: leadsData, error: leadsError } = await supabase
@@ -433,17 +438,15 @@ export async function sendBulkEmails(automationId: string, leadIds: string[], te
         // Convert newlines to <br> for HTML
         const htmlBody = body.replace(/\n/g, '<br>');
 
-        // Send email via Supabase Edge Function
-        const response = await supabase.functions.invoke('send-email', {
-          body: {
-            to: lead.email,
-            subject: subject,
-            body: body,
-            htmlBody: htmlBody
-          }
+        // Send email via Edge Function (avec token de session)
+        const emailData = await invokeEdgeFunction('send-email', {
+          to: lead.email,
+          subject: subject,
+          body: body,
+          htmlBody: htmlBody
         });
 
-        if (response.data?.success) {
+        if (emailData?.success) {
           sentEmails.push({
             leadId: lead.id,
             email: lead.email,
@@ -453,7 +456,7 @@ export async function sendBulkEmails(automationId: string, leadIds: string[], te
           failedEmails.push({
             leadId: lead.id,
             email: lead.email,
-            error: response.data?.error || 'Unknown error'
+            error: emailData?.error || 'Unknown error'
           });
         }
       } catch (error: any) {

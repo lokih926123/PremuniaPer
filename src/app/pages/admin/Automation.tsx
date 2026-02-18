@@ -126,10 +126,14 @@ export default function Automation() {
       if (!selectedAutomation || selectedLeads.length === 0) {
         throw new Error('Veuillez sélectionner une automatisation et au moins un contact');
       }
+      const templateId = templates?.[0]?.id;
+      if (!templateId) {
+        throw new Error('Aucun modèle d\'email disponible. Créez d\'abord un modèle dans la base de données.');
+      }
       const response = await sendBulkEmails(
         selectedAutomation.id,
         selectedLeads,
-        templates?.[0]?.id || ''
+        templateId
       );
       return response;
     },
