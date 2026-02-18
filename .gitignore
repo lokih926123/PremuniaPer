@@ -40,5 +40,11 @@ pnpm-debug.log*
 
 # Test files temporaires
 test*.json
+test*.py
 update-smtp.json
 insert-template.json
+
+# Scripts de migration locaux (sensibles)
+fix-seed.ps1
+migrate.ps1
+migrate.sh
