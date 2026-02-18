@@ -361,6 +361,67 @@ export async function updateSmtpConfig(config: Partial<SmtpConfig>) {
   return { ...data, password: data.password ? '••••••••' : '' } as SmtpConfig;
 }
 
+// ==================== LEAD INTERACTIONS ====================
+
+export async function getLeadInteractions(leadId: string) {
+  const { data, error } = await supabase
+    .from('lead_interactions')
+    .select('*')
+    .eq('lead_id', leadId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function sendEmailToLead(lead: Lead, subject: string, body: string) {
+  // 1. Envoyer l'email via la Edge Function
+  const htmlBody = body.replace(/\n/g, '<br>');
+  const emailData = await invokeEdgeFunction('send-email', {
+    to: lead.email,
+    subject,
+    body,
+    htmlBody,
+  });
+
+  if (!emailData?.success) {
+    // Enregistrer l'échec dans les interactions
+    await supabase.from('lead_interactions').insert([{
+      lead_id: lead.id,
+      type: 'email',
+      direction: 'outbound',
+      subject,
+      body,
+      status: 'failed',
+    }]);
+    throw new Error(emailData?.error || 'Échec de l\'envoi de l\'email');
+  }
+
+  // 2. Enregistrer l'interaction dans l'historique
+  const { error: interactionError } = await supabase
+    .from('lead_interactions')
+    .insert([{
+      lead_id: lead.id,
+      type: 'email',
+      direction: 'outbound',
+      subject,
+      body,
+      status: 'completed',
+    }]);
+
+  if (interactionError) {
+    console.warn('Interaction non enregistrée:', interactionError.message);
+  }
+
+  // 3. Mettre à jour last_contacted_at + statut → contacted si encore "new"
+  const updates: any = { last_contacted_at: new Date().toISOString() };
+  if (lead.status === 'new') updates.status = 'contacted';
+
+  await supabase.from('leads').update(updates).eq('id', lead.id);
+
+  return { success: true, messageId: emailData.messageId };
+}
+
 // ==================== AUTOMATIONS ====================
 
 export async function getAutomations() {
