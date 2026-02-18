@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router';
-import { supabase, apiCall } from '../../../lib/supabase';
 import { toast } from 'sonner';
+import { getCurrentUser, isAdmin, signOut } from '../../../lib/supabase-client';
 import { 
   LayoutDashboard, 
   Users, 
@@ -17,7 +17,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminStatus, setAdminStatus] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -26,25 +26,25 @@ export default function AdminLayout() {
 
   const checkAuth = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const currentUser = await getCurrentUser();
       
-      if (!session) {
+      if (!currentUser) {
         navigate('/signin');
         return;
       }
 
-      setUser(session.user);
+      setUser(currentUser);
 
       // Check admin status
-      const adminStatus = await apiCall('/auth/check-admin');
+      const admin = await isAdmin(currentUser.id);
       
-      if (!adminStatus.isAdmin) {
+      if (!admin) {
         toast.error('Accès refusé : droits administrateur requis');
         navigate('/promote-admin');
         return;
       }
 
-      setIsAdmin(true);
+      setAdminStatus(true);
     } catch (error: any) {
       console.error('Auth check error:', error);
       toast.error('Erreur de vérification des droits');
@@ -55,9 +55,13 @@ export default function AdminLayout() {
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    toast.success('Déconnexion réussie');
-    navigate('/');
+    try {
+      await signOut();
+      toast.success('Déconnexion réussie');
+      navigate('/');
+    } catch (error: any) {
+      toast.error('Erreur lors de la déconnexion');
+    }
   };
 
   if (loading) {
@@ -71,7 +75,7 @@ export default function AdminLayout() {
     );
   }
 
-  if (!isAdmin) {
+  if (!adminStatus) {
     return null;
   }
 

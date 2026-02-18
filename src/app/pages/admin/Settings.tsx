@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiCall } from '../../../lib/supabase';
+import { getSiteSettings, updateSiteSettings } from '../../../lib/supabase-client';
 import { toast } from 'sonner';
 import { Save, RefreshCw } from 'lucide-react';
 
@@ -9,11 +9,7 @@ export default function Settings() {
   
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings'],
-    queryFn: async () => {
-      const response = await fetch(`https://${(await import('../../../../utils/supabase/info')).projectId}.supabase.co/functions/v1/make-server-9318fa5a/settings`);
-      const data = await response.json();
-      return data.data;
-    },
+    queryFn: getSiteSettings,
   });
 
   const [formData, setFormData] = useState({
@@ -27,17 +23,18 @@ export default function Settings() {
   // Update form when settings load
   useEffect(() => {
     if (settings) {
-      setFormData(settings);
+      setFormData({
+        hero_title: settings.hero_title,
+        hero_subtitle: settings.hero_subtitle,
+        contact_email: settings.contact_email,
+        contact_phone: settings.contact_phone,
+        contact_address: settings.contact_address,
+      });
     }
   }, [settings]);
 
-  const updateSettings = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      return apiCall('/admin/settings', {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      });
-    },
+  const updateSettingsMutation = useMutation({
+    mutationFn: updateSiteSettings,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       toast.success('Paramètres mis à jour avec succès');
@@ -49,12 +46,18 @@ export default function Settings() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateSettings.mutate(formData);
+    updateSettingsMutation.mutate(formData);
   };
 
   const handleReset = () => {
     if (settings) {
-      setFormData(settings);
+      setFormData({
+        hero_title: settings.hero_title,
+        hero_subtitle: settings.hero_subtitle,
+        contact_email: settings.contact_email,
+        contact_phone: settings.contact_phone,
+        contact_address: settings.contact_address,
+      });
       toast.info('Formulaire réinitialisé');
     }
   };
@@ -205,11 +208,11 @@ export default function Settings() {
 
           <button
             type="submit"
-            disabled={updateSettings.isPending}
+            disabled={updateSettingsMutation.isPending}
             className="px-8 py-3 bg-[#EE3B33] text-white rounded-lg hover:bg-[#d63329] transition font-semibold flex items-center gap-2 disabled:opacity-50"
           >
             <Save className="w-5 h-5" />
-            {updateSettings.isPending ? 'Enregistrement...' : 'Enregistrer les modifications'}
+            {updateSettingsMutation.isPending ? 'Enregistrement...' : 'Enregistrer les modifications'}
           </button>
         </div>
       </form>

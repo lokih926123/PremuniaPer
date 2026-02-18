@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { apiCall } from '../../lib/supabase';
+import { signUp } from '../../lib/supabase-client';
 import { UserPlus } from 'lucide-react';
 
 export default function SignUp() {
@@ -30,16 +30,8 @@ export default function SignUp() {
     setLoading(true);
 
     try {
-      await apiCall('/auth/signup', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          name: formData.name,
-        }),
-      });
-
-      toast.success('Compte créé avec succès ! Vous pouvez maintenant vous connecter.');
+      await signUp(formData.email, formData.password, formData.name);
+      toast.success('Compte créé avec succès ! Vous pouvez maintenant vous promouvoir en admin.');
       navigate('/promote-admin');
     } catch (error: any) {
       toast.error(error.message || 'Erreur lors de la création du compte');

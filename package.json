@@ -1,11 +1,13 @@
 {
-  "name": "@figma/my-make-file",
+  "name": "premunia-crm",
   "private": true,
-  "version": "0.0.1",
+  "version": "2.0.0",
+  "description": "Plateforme CRM complète pour Premunia - Landing page + Dashboard admin avec gestion des leads",
   "type": "module",
   "scripts": {
+    "dev": "vite",
     "build": "vite build",
-    "dev": "vite"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

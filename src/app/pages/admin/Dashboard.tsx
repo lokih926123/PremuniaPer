@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { apiCall } from '../../../lib/supabase';
+import { getLeadStats, getLeads } from '../../../lib/supabase-client';
 import { Users, UserCheck, TrendingUp, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale/fr';
@@ -7,12 +7,12 @@ import { fr } from 'date-fns/locale/fr';
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['stats'],
-    queryFn: () => apiCall('/admin/stats'),
+    queryFn: getLeadStats,
   });
 
   const { data: leads, isLoading: leadsLoading } = useQuery({
     queryKey: ['leads'],
-    queryFn: () => apiCall('/admin/leads'),
+    queryFn: getLeads,
   });
 
   const recentLeads = leads?.slice(0, 5) || [];

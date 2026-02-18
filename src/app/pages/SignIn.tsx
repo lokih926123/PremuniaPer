@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { supabase } from '../../lib/supabase';
+import { signIn } from '../../lib/supabase-client';
 import { LogIn } from 'lucide-react';
 
 export default function SignIn() {
@@ -15,13 +15,7 @@ export default function SignIn() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
+      await signIn(email, password);
       toast.success('Connexion réussie !');
       navigate('/admin');
     } catch (error: any) {

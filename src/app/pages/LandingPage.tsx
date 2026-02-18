@@ -3,7 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ArrowRight, Shield, TrendingUp, Users, ChevronRight, Mail, Phone, MapPin, Check } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { API_URL } from '../../lib/supabase';
+import { getSiteSettings, createLead } from '../../lib/supabase-client';
 
 export default function LandingPage() {
   const [formData, setFormData] = useState({
@@ -20,25 +20,12 @@ export default function LandingPage() {
   // Fetch site settings
   const { data: settings } = useQuery({
     queryKey: ['settings'],
-    queryFn: async () => {
-      const response = await fetch(`${API_URL}/settings`);
-      const data = await response.json();
-      return data.data;
-    },
+    queryFn: getSiteSettings,
   });
 
   // Create lead mutation
-  const createLead = useMutation({
-    mutationFn: async (leadData: typeof formData) => {
-      const response = await fetch(`${API_URL}/leads`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(leadData),
-      });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error);
-      return data.data;
-    },
+  const createLeadMutation = useMutation({
+    mutationFn: createLead,
     onSuccess: () => {
       toast.success('Demande envoyée avec succès ! Nous vous contacterons rapidement.');
       setFormData({
@@ -57,12 +44,12 @@ export default function LandingPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createLead.mutate(formData);
+    createLeadMutation.mutate(formData);
   };
 
   // Tax savings calculation
   const taxRate = income > 70000 ? 0.41 : income > 50000 ? 0.30 : 0.11;
-  const contribution = Math.min(income * 0.10, 32909); // 10% of income, max deductible amount
+  const contribution = Math.min(income * 0.10, 32909);
   const taxSavings = contribution * taxRate;
 
   const chartData = [
@@ -398,10 +385,10 @@ export default function LandingPage() {
 
                   <button
                     type="submit"
-                    disabled={createLead.isPending}
+                    disabled={createLeadMutation.isPending}
                     className="w-full px-6 py-4 bg-[#EE3B33] text-white rounded-lg hover:bg-[#d63329] transition font-semibold text-lg disabled:opacity-50"
                   >
-                    {createLead.isPending ? 'Envoi en cours...' : 'Demander mon étude gratuite'}
+                    {createLeadMutation.isPending ? 'Envoi en cours...' : 'Demander mon étude gratuite'}
                   </button>
                 </form>
               </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { supabase, apiCall } from '../../lib/supabase';
+import { getCurrentUser, promoteToAdmin } from '../../lib/supabase-client';
 import { Shield, AlertTriangle } from 'lucide-react';
 
 export default function PromoteAdmin() {
@@ -14,21 +14,24 @@ export default function PromoteAdmin() {
   }, []);
 
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser) {
+        navigate('/signin');
+        return;
+      }
+      setUser(currentUser);
+    } catch (error) {
       navigate('/signin');
-      return;
     }
-    setUser(session.user);
   };
 
   const handlePromote = async () => {
+    if (!user) return;
+    
     setLoading(true);
     try {
-      await apiCall('/auth/promote-admin', {
-        method: 'POST',
-      });
-
+      await promoteToAdmin(user.id);
       toast.success('Vous êtes maintenant administrateur !');
       navigate('/admin');
     } catch (error: any) {
@@ -36,10 +39,6 @@ export default function PromoteAdmin() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSignIn = async () => {
-    navigate('/signin');
   };
 
   if (!user) {
@@ -116,13 +115,10 @@ export default function PromoteAdmin() {
           </div>
         </div>
 
-        <div className="mt-6 text-center space-y-2">
-          <button
-            onClick={handleSignIn}
-            className="text-gray-600 hover:text-gray-900 transition"
-          >
+        <div className="mt-6 text-center">
+          <a href="/signin" className="text-gray-600 hover:text-gray-900 transition">
             ← Déjà admin ? Se connecter
-          </button>
+          </a>
         </div>
       </div>
     </div>

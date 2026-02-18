@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiCall } from '../../../lib/supabase';
+import { getLeads, updateLead, deleteLead } from '../../../lib/supabase-client';
 import { toast } from 'sonner';
 import { Search, Edit, Trash2, X, Save } from 'lucide-react';
 import { format } from 'date-fns';
@@ -18,16 +18,11 @@ export default function Leads() {
 
   const { data: leads, isLoading } = useQuery({
     queryKey: ['leads'],
-    queryFn: () => apiCall('/admin/leads'),
+    queryFn: getLeads,
   });
 
-  const updateLead = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      return apiCall(`/admin/leads/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      });
-    },
+  const updateLeadMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => updateLead(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['stats'] });
@@ -39,12 +34,8 @@ export default function Leads() {
     },
   });
 
-  const deleteLead = useMutation({
-    mutationFn: async (id: string) => {
-      return apiCall(`/admin/leads/${id}`, {
-        method: 'DELETE',
-      });
-    },
+  const deleteLeadMutation = useMutation({
+    mutationFn: deleteLead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['stats'] });
@@ -65,7 +56,7 @@ export default function Leads() {
 
   const handleSave = () => {
     if (editingLead) {
-      updateLead.mutate({
+      updateLeadMutation.mutate({
         id: editingLead.id,
         data: editForm,
       });
@@ -74,7 +65,7 @@ export default function Leads() {
 
   const handleDelete = (lead: any) => {
     if (confirm(`Êtes-vous sûr de vouloir supprimer le lead de ${lead.first_name} ${lead.last_name} ?`)) {
-      deleteLead.mutate(lead.id);
+      deleteLeadMutation.mutate(lead.id);
     }
   };
 
@@ -311,11 +302,11 @@ export default function Leads() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={updateLead.isPending}
+                disabled={updateLeadMutation.isPending}
                 className="px-6 py-2 bg-[#EE3B33] text-white rounded-lg hover:bg-[#d63329] transition flex items-center gap-2 disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />
-                {updateLead.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                {updateLeadMutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
               </button>
             </div>
           </div>

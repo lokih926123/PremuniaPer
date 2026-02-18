@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiCall } from '../../../lib/supabase';
+import { getSmtpConfig, updateSmtpConfig } from '../../../lib/supabase-client';
 import { toast } from 'sonner';
 import { Save, Mail, AlertCircle } from 'lucide-react';
 
@@ -9,7 +9,7 @@ export default function Automation() {
   
   const { data: smtpConfig, isLoading } = useQuery({
     queryKey: ['smtp'],
-    queryFn: () => apiCall('/admin/smtp'),
+    queryFn: getSmtpConfig,
   });
 
   const [formData, setFormData] = useState({
@@ -24,17 +24,19 @@ export default function Automation() {
   // Update form when config loads
   useEffect(() => {
     if (smtpConfig) {
-      setFormData(smtpConfig);
+      setFormData({
+        host: smtpConfig.host,
+        port: smtpConfig.port,
+        username: smtpConfig.username,
+        password: smtpConfig.password,
+        from_email: smtpConfig.from_email,
+        from_name: smtpConfig.from_name,
+      });
     }
   }, [smtpConfig]);
 
-  const updateSmtp = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      return apiCall('/admin/smtp', {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      });
-    },
+  const updateSmtpMutation = useMutation({
+    mutationFn: updateSmtpConfig,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['smtp'] });
       toast.success('Configuration SMTP enregistrée');
@@ -46,7 +48,7 @@ export default function Automation() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateSmtp.mutate(formData);
+    updateSmtpMutation.mutate(formData);
   };
 
   if (isLoading) {
@@ -225,11 +227,11 @@ export default function Automation() {
         <div className="flex justify-end">
           <button
             type="submit"
-            disabled={updateSmtp.isPending}
+            disabled={updateSmtpMutation.isPending}
             className="px-8 py-3 bg-[#EE3B33] text-white rounded-lg hover:bg-[#d63329] transition font-semibold flex items-center gap-2 disabled:opacity-50"
           >
             <Save className="w-5 h-5" />
-            {updateSmtp.isPending ? 'Enregistrement...' : 'Enregistrer la configuration'}
+            {updateSmtpMutation.isPending ? 'Enregistrement...' : 'Enregistrer la configuration'}
           </button>
         </div>
       </form>
@@ -238,7 +240,7 @@ export default function Automation() {
       <div className="bg-red-50 border border-red-200 rounded-xl p-6">
         <h3 className="font-semibold text-red-900 mb-2">🔒 Sécurité</h3>
         <p className="text-red-800 text-sm">
-          Votre mot de passe SMTP est stocké de manière sécurisée côté serveur et n'est jamais visible dans le navigateur. 
+          Votre mot de passe SMTP est stocké de manière sécurisée côté serveur via Supabase Row Level Security. 
           Utilisez toujours des mots de passe d'application dédiés, jamais vos mots de passe principaux.
         </p>
       </div>
